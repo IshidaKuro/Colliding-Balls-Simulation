@@ -38,7 +38,7 @@ GLfloat lastFrame = 0.0f;
 const long numberOfSpheres = 7000;
 float radius = 1.0f;
 
-int planeScale = 100;
+int planeScale = 150;
 vector<vector<int>> ballPool;
 int numPools = 50;
 vector<vector<int>> emptyBallPool = vector<vector<int>>(numPools);
