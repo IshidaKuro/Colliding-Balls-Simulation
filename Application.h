@@ -23,8 +23,8 @@ public:
 
 	// static variables for callback function
 	// window
-	static const GLuint WIDTH = 800;
-	static const GLuint HEIGHT = 600;
+	static const GLuint WIDTH = 1920;
+	static const GLuint HEIGHT = 1080;
 	static int SCREEN_WIDTH, SCREEN_HEIGHT;
 
 	// Camera

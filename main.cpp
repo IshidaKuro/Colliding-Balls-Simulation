@@ -35,13 +35,13 @@ GLfloat deltaTime = 0.0f;
 GLfloat lastFrame = 0.0f;
 
 //declare the number of spheres in the simulation
-const long numberOfSpheres = 7000;
+const int numberOfSpheres = 5000;
 float radius = 1.0f;
 
-int planeScale = 150;
-vector<vector<int>> ballPool;
-int numPools = 50;
-vector<vector<int>> emptyBallPool = vector<vector<int>>(numPools);
+int planeScale = 200;
+vector<vector<vector<int>>> ballPool;
+int gridXY = 10;
+vector<vector<vector<int>>> emptyBallPool(gridXY,vector<vector<int>>(gridXY,vector<int>()));
 
 // main function
 int main()
@@ -63,7 +63,7 @@ int main()
 	//random number generation
 	default_random_engine generator;
 	uniform_real_distribution<float> distribution(1 - planeScale, planeScale - 1);
-	uniform_real_distribution<float> speedDistribution(-15, 15);
+	uniform_real_distribution<float> speedDistribution(-30, 30);
 
 	//shaders and textures
 	Shader rbShader = Shader("resources/shaders/physics.vert", "resources/shaders/physics.frag");
@@ -102,6 +102,12 @@ int main()
 	double accumulator = 0.0;
 	double newTime;
 
+
+
+	float LHigh, MHigh, LLow, MLow;
+	float poolModifier = 2 * planeScale / gridXY;
+
+	float collissionDistance = (2* radius) * (2*radius);
 	// Game loop
 	while (!glfwWindowShouldClose(app.getWindow()))
 	{
@@ -139,10 +145,7 @@ int main()
 				float e = rb[i].getCor();
 				glm::vec3 vR = rb[i].getVel();
 
-
-
 				vector<Vertex> verti = rb[i].getMesh().getVertices();
-
 
 				rb[i].setAcc(rb[i].applyForces(rb[i].getPos(), rb[i].getVel(), t, dt));
 
@@ -164,32 +167,20 @@ int main()
 					ix = rb[i].getPos().x;
 					iz = rb[i].getPos().z;
 
-
-
-
-					//collision with plane
-				///
-				///	if (rb[i].getPos().y < 1)
-				///	{
-				///		rb[i].setPos(1, 1);
-				///		rb[i].setVel(rb[i].getVel() * glm::vec3(1, -1, 1));
-				///
-				///	}
-
-				//if the ball is at an x boundary
-					if ((ix < 1 - planeScale) || (ix > planeScale - 1))
+					//if the ball is at a plane boundary
+					if ((ix < radius - planeScale) || (ix > planeScale - radius))
 					{
-						if (ix < 1 - planeScale)
+						if (ix < radius - planeScale)
 						{
-							rb[i].setPos(0, 1 - planeScale);
+							rb[i].setPos(0, radius - planeScale);
 						}
 						else
 						{
-							rb[i].setPos(0, planeScale - 1);
+							rb[i].setPos(0, planeScale - radius);
 						}
 						rb[i].setVel(rb[i].getVel() * glm::vec3(-1, 1, 1));
 					}
-					if ((iz < 1 - planeScale) || (iz > planeScale - 1))
+					if ((iz < radius - planeScale) || (iz > planeScale - radius))
 					{
 						if (iz < 1 - planeScale)
 						{
@@ -201,64 +192,68 @@ int main()
 						}
 						rb[i].setVel(rb[i].getVel() * glm::vec3(1, 1, -1));
 					}
-					float High;
-					float Low = -planeScale;
 
 					//assign ball to appropriate pool and perfom collission check
-					for (int l = 0; l < numPools; l++)
+					LLow = -planeScale;
+					for (int l = 0; l < gridXY; l++)
 					{
-						High = Low + (2 * planeScale / numPools);
-
-						if (rb[i].getPos().x - radius <High && rb[i].getPos().x + radius> Low)
+						LHigh = LLow + poolModifier;
+					
+						if ((ix - radius < LHigh) && (ix + radius> LLow))
 						{
-							//check for collissions before adding to the list in order to prevent checking if the ball collides with itself
-							//checking for collissions as we add also means that no redundant comparisons will be made
-
-							//check if the ball collides with any others on this list
-
-							for (int j : ballPool[l])
+							MLow = -planeScale;
+							for (int m = 0; m < gridXY; m++)
 							{
-
-								jx = rb[j].getPos().x;
-								jz = rb[j].getPos().z;
-
-								//if the distance between the two center points of the spheres is less than 2 a collision must take place
-								if (((jx - ix) * (jx - ix)) + ((jz - iz) * (jz - iz)) < 4)
+								MHigh = MLow + poolModifier;
+								if ((iz - radius < MHigh) && (iz + radius > MLow))
 								{
-									//resolve any overlap
-									float pointDistance = glm::fastSqrt(((jx - ix) * (jx - ix)) + ((jz - iz) * (jz - iz)));
-									float overlap = 0.5f * (pointDistance - 2);
-									rb[j].setPos(rb[j].getPos() - overlap * (rb[j].getPos() - rb[i].getPos()) / pointDistance);
-									rb[i].setPos(rb[i].getPos() + overlap * (rb[j].getPos() - rb[i].getPos()) / pointDistance);
+									//check for collissions before adding to the list in order to prevent checking if the ball collides with itself
+									//checking for collissions as we add also means that no redundant comparisons will be made
 
-									//find the normal for the collision
+									//check if the ball collides with any others on this list
 
-									glm::vec3 collisionNormal = glm::normalize(rb[j].getPos() - rb[i].getPos());
+									for (int j : ballPool[l][m])
+									{
 
-									//generate a collission impulse
+										jx = rb[j].getPos().x;
+										jz = rb[j].getPos().z;
+										float pointDistance = glm::fastSqrt(((jx - ix) * (jx - ix)) + ((jz - iz) * (jz - iz)));
+										//if the distance between the two center points of the spheres is less than twice the radius, a collission must take place
+										if (pointDistance < 2*radius)
+										{
+											//resolve any overlap
+											
+											float overlap = 0.5f * (pointDistance - 2*radius);
+											rb[j].setPos(rb[j].getPos() - overlap * (rb[j].getPos() - rb[i].getPos()) / pointDistance);
+											rb[i].setPos(rb[i].getPos() + overlap * (rb[j].getPos() - rb[i].getPos()) / pointDistance);
 
-									float a1 = glm::dot(rb[j].getVel(), collisionNormal);
-									float a2 = glm::dot(rb[i].getVel(), collisionNormal);
+											//find the normal for the collision
 
-									float P = (2.0 * (a1 - a2)) / (rb[j].getMass() + rb[i].getMass());
+											glm::vec3 collisionNormal = glm::normalize(rb[j].getPos() - rb[i].getPos());
 
-									rb[j].setVel(rb[j].getVel() - P * rb[i].getMass() * collisionNormal);
-									rb[i].setVel(rb[i].getVel() + P * rb[j].getMass() * collisionNormal);
+											//generate a collission impulse
 
+											float a1 = glm::dot(rb[j].getVel(), collisionNormal);
+											float a2 = glm::dot(rb[i].getVel(), collisionNormal);
+
+											float P = (2.0 * (a1 - a2)) / (rb[j].getMass() + rb[i].getMass());
+
+											rb[j].setVel(rb[j].getVel() - P * rb[i].getMass() * collisionNormal);
+											rb[i].setVel(rb[i].getVel() + P * rb[j].getMass() * collisionNormal);
+
+										}
+									}
+
+									//add the ball to the list
+									ballPool[l][m].push_back(i);
 								}
+								MLow = MHigh;
 							}
-
-							//add the ball to the list
-							ballPool[l].push_back(i);
-
-
+						
 						}
 
-						Low = High;
+						LLow = LHigh;
 					}
-
-
-
 
 
 				}
@@ -266,21 +261,10 @@ int main()
 
 				accumulator -= dt;
 		}
-			/*
-			**	INTERACTION
-			*/
+			
 			// Manage interaction
 			app.doMovement(t);
 
-			/*
-			**	SIMULATION
-			*/
-
-
-
-			/*
-			**	RENDER
-			*/
 			// clear buffer
 			app.clear();
 			// draw ground plane
@@ -290,7 +274,6 @@ int main()
 			{
 				app.draw(r.getMesh());
 			}
-			//app.draw(rb.getMesh());
 			app.display();
 		}
 
