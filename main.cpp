@@ -34,14 +34,22 @@ using namespace std;
 GLfloat deltaTime = 0.0f;
 GLfloat lastFrame = 0.0f;
 
-//declare the number of spheres in the simulation
-const int numberOfSpheres = 5000;
-float radius = 1.0f;
+//sphere variables
+constexpr int numberOfSpheres = 3200;
+constexpr float radius = 1.0f;
 
-int planeScale = 200;
-vector<vector<vector<int>>> ballPool;
-int gridXY = 10;
-vector<vector<vector<int>>> emptyBallPool(gridXY,vector<vector<int>>(gridXY,vector<int>()));
+constexpr int planeScale  = 200;
+constexpr int gridXY = 40;
+
+//let the compiler do some of the math for us
+constexpr float planeMinusRadius = planeScale - radius;
+constexpr float radiusMinusPlane = radius - planeScale;
+constexpr float poolModifier = 2 * planeScale / gridXY;
+constexpr float twiceRadius = 2 * radius;
+constexpr float collissionDistance = twiceRadius * twiceRadius;
+
+vector<vector<vector<int>>> ballPool(gridXY, vector<vector<int>>(gridXY, vector<int>()));
+const static vector<vector<vector<int>>> emptyBallPool(gridXY,vector<vector<int>>(gridXY,vector<int>()));
 
 // main function
 int main()
@@ -55,10 +63,10 @@ int main()
 	Mesh plane = Mesh::Mesh(Mesh::QUAD);
 	// scale it up x100
 	plane.scale(glm::vec3(planeScale, planeScale, planeScale));
-	Shader lambert = Shader("resources/shaders/physics.vert", "resources/shaders/physics.frag");
+	const Shader lambert = Shader("resources/shaders/physics.vert", "resources/shaders/physics.frag");
 	plane.setShader(lambert);
 
-	Gravity *g = new Gravity;
+	const Gravity *g = new Gravity;
 
 	//random number generation
 	default_random_engine generator;
@@ -68,6 +76,8 @@ int main()
 	//shaders and textures
 	Shader rbShader = Shader("resources/shaders/physics.vert", "resources/shaders/physics.frag");
 	Mesh sphere = Mesh("resources/models/sphere2.obj");
+
+	
 
 	//create spheres
 	RigidBody rb[numberOfSpheres];
@@ -84,16 +94,8 @@ int main()
 		rb[i].setCor(1.0f);
 
 		rb[i].scale(glm::vec3(radius, radius, radius));
-
-		float m = rb[i].getMass(); // get the mass of the object
-
-		//calculate the inertia tensor for the object
-		glm::mat3x3 inertiaTensor = glm::mat3x3((2 / 5)* m * (radius*radius), 0, 0,
-			0, (2 / 5)* m * (radius*radius), 0,
-			0, 0, (2 / 5)* m * (radius*radius));
-
 	}
-
+	
 	/////time variables 
 	double t = 0.0;
 	double dt;
@@ -102,12 +104,9 @@ int main()
 	double accumulator = 0.0;
 	double newTime;
 
-
-
+	ballPool.reserve(numberOfSpheres);
 	float LHigh, MHigh, LLow, MLow;
-	float poolModifier = 2 * planeScale / gridXY;
 
-	float collissionDistance = (2* radius) * (2*radius);
 	// Game loop
 	while (!glfwWindowShouldClose(app.getWindow()))
 	{
@@ -124,9 +123,9 @@ int main()
 			//clear ball pools
 			ballPool = emptyBallPool;
 
+			//for each sphere in the simulation
 			for (int i = numberOfSpheres - 1; i >= 0; i--)
-			{
-
+			{		
 				// integration ( rotation )
 				rb[i].setAngVel(rb[i].getAngVel() + dt * rb[i].getAngAcc());
 				// create skew symmetric matrix for w
@@ -137,9 +136,7 @@ int main()
 				R += dt * angVelSkew *R;
 				R = glm::orthonormalize(R);
 				rb[i].setRotate(glm::mat4(R));
-				//set the inverse inertia of the object
-
-
+				
 				//values required for impulses
 
 				float e = rb[i].getCor();
@@ -147,15 +144,16 @@ int main()
 
 				vector<Vertex> verti = rb[i].getMesh().getVertices();
 
+				//apply forces to generate acceleration
 				rb[i].setAcc(rb[i].applyForces(rb[i].getPos(), rb[i].getVel(), t, dt));
 
 				//update speed
 				rb[i].setVel(rb[i].getVel() + (rb[i].getAcc()*dt));
 
 				//set the rigid body's new position
-
 				rb[i].setPos(rb[i].getPos() + rb[i].getVel()*dt);
 
+				//set new angular velocity (rotation speed)
 				rb[i].setAngVel(glm::vec3(rb[i].getVel().z, -rb[i].getVel().y, -rb[i].getVel().x));
 
 				//--------------------------------------------------
@@ -168,27 +166,27 @@ int main()
 					iz = rb[i].getPos().z;
 
 					//if the ball is at a plane boundary
-					if ((ix < radius - planeScale) || (ix > planeScale - radius))
+					if ((ix < radiusMinusPlane) || (ix > planeMinusRadius))
 					{
-						if (ix < radius - planeScale)
+						if (ix < radiusMinusPlane)
 						{
-							rb[i].setPos(0, radius - planeScale);
+							rb[i].setPos(0, radiusMinusPlane);
 						}
 						else
 						{
-							rb[i].setPos(0, planeScale - radius);
+							rb[i].setPos(0, planeMinusRadius);
 						}
 						rb[i].setVel(rb[i].getVel() * glm::vec3(-1, 1, 1));
 					}
-					if ((iz < radius - planeScale) || (iz > planeScale - radius))
+					if ((iz < radiusMinusPlane) || (iz > planeMinusRadius))
 					{
-						if (iz < 1 - planeScale)
+						if (iz < radiusMinusPlane)
 						{
-							rb[i].setPos(2, 1 - planeScale);
+							rb[i].setPos(2, radiusMinusPlane);
 						}
 						else
 						{
-							rb[i].setPos(2, planeScale - 1);
+							rb[i].setPos(2, planeMinusRadius);
 						}
 						rb[i].setVel(rb[i].getVel() * glm::vec3(1, 1, -1));
 					}
@@ -219,11 +217,11 @@ int main()
 										jz = rb[j].getPos().z;
 										float pointDistance = glm::fastSqrt(((jx - ix) * (jx - ix)) + ((jz - iz) * (jz - iz)));
 										//if the distance between the two center points of the spheres is less than twice the radius, a collission must take place
-										if (pointDistance < 2*radius)
+										if (pointDistance < twiceRadius)
 										{
 											//resolve any overlap
 											
-											float overlap = 0.5f * (pointDistance - 2*radius);
+											float overlap = 0.5f * (pointDistance - twiceRadius);
 											rb[j].setPos(rb[j].getPos() - overlap * (rb[j].getPos() - rb[i].getPos()) / pointDistance);
 											rb[i].setPos(rb[i].getPos() + overlap * (rb[j].getPos() - rb[i].getPos()) / pointDistance);
 
@@ -245,7 +243,7 @@ int main()
 									}
 
 									//add the ball to the list
-									ballPool[l][m].push_back(i);
+									ballPool[l][m].emplace_back(i);
 								}
 								MLow = MHigh;
 							}
