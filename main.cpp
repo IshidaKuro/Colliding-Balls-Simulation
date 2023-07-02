@@ -35,7 +35,7 @@ GLfloat deltaTime = 0.0f;
 GLfloat lastFrame = 0.0f;
 
 //sphere variables
-constexpr int numberOfSpheres = 3200;
+constexpr int numberOfSpheres = 3310;
 constexpr float radius = 1.0f;
 
 constexpr int planeScale  = 200;
@@ -61,8 +61,9 @@ int main()
 
 	// create ground plane
 	Mesh plane = Mesh::Mesh(Mesh::QUAD);
-	// scale it up x100
+	// scale it up
 	plane.scale(glm::vec3(planeScale, planeScale, planeScale));
+	//set shader
 	const Shader lambert = Shader("resources/shaders/physics.vert", "resources/shaders/physics.frag");
 	plane.setShader(lambert);
 
@@ -210,12 +211,16 @@ int main()
 
 									//check if the ball collides with any others on this list
 
+									//*** TO DO - pull collission check out of for each loop and execute on multiple threads
+
 									for (int j : ballPool[l][m])
 									{
 
 										jx = rb[j].getPos().x;
 										jz = rb[j].getPos().z;
+
 										float pointDistance = glm::fastSqrt(((jx - ix) * (jx - ix)) + ((jz - iz) * (jz - iz)));
+										
 										//if the distance between the two center points of the spheres is less than twice the radius, a collission must take place
 										if (pointDistance < twiceRadius)
 										{
@@ -268,7 +273,7 @@ int main()
 			// draw ground plane
 			app.draw(plane);
 			//draw rigid body
-			for each (RigidBody r in rb)
+			for (RigidBody r : rb)
 			{
 				app.draw(r.getMesh());
 			}
